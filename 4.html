@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>🧮 เกมการบวกเศษส่วน ป.4 - Fraction Multiplication & Addition Adventure</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;800&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { 
+                        sans: ['Kanit', 'sans-serif'],
+                        mono: ['Space Mono', 'monospace'] 
+                    },
+                    colors: {
+                        pastel: { blue: '#bae6fd', pink: '#fbcfe8', yellow: '#fef08a', mint: '#a7f3d0', dark: '#1e293b' }
+                    },
+                    boxShadow: { 'soft': '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js & MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+        body {
+            font-family: 'Kanit', sans-serif;
+            overflow-x: hidden; overflow-y: hidden;
+            touch-action: none;
+            background: linear-gradient(135deg, #e0f2fe, #fce7f3);
+            transition: background 0.5s;
+            height: 100vh; width: 100vw; box-sizing: border-box;
+        }
+        body.dark { background: linear-gradient(135deg, #0f172a, #1e1b4b); color: white; }
+
+        /* Animations */
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+        @keyframes pop { 0% { transform: scale(0.8); opacity: 0; } 50% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes pulse-pink { 0%, 100% { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.4); } 50% { box-shadow: 0 0 0 8px rgba(236, 72, 153, 0); } }
+        @keyframes stepIn { 0% { opacity: 0; transform: scale(0.9) translateY(10px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        .animate-pop { animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .animate-shake { animation: shake 0.4s; }
+        .anim-step-in { animation: stepIn 0.5s ease-out forwards; }
+
+        /* AR Cursor */
+        #ar-cursor {
+            position: fixed; width: 40px; height: 40px;
+            background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,215,0,0.8) 100%);
+            border-radius: 50%; pointer-events: none; z-index: 9999;
+            transform: translate(-50%, -50%); display: none;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+            transition: transform 0.1s;
+        }
+        #ar-cursor.pinched { transform: translate(-50%, -50%) scale(0.6); background: #10b981; }
+
+        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 2px solid rgba(255, 255, 255, 0.5); }
+        .dark .glass-card { background: rgba(30, 41, 59, 0.9); border-color: rgba(255, 255, 255, 0.1); }
+        .btn { transition: all 0.2s; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+        .btn:active { transform: scale(0.92); }
+        
+        /* Fraction Styling */
+        .fraction-container {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 8px;
+            font-family: 'Space Mono', monospace;
+            font-weight: bold;
+        }
+        .fraction-line {
+            width: 100%;
+            height: 4px;
+            background-color: #1e293b;
+            margin: 4px 0;
+            border-radius: 2px;
+        }
+        .dark .fraction-line {
+            background-color: #f1f5f9;
+        }
+
+        /* Input Math Box for Fraction */
+        .fraction-input-box {
+            width: 45px; height: 45px;
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Space Mono', monospace; font-size: 22px; font-weight: bold;
+            border-radius: 10px; transition: all 0.2s;
+        }
+        .fraction-input-box.empty { border: 2px dashed #cbd5e1; color: transparent; }
+        .dark .fraction-input-box.empty { border-color: #475569; }
+        .fraction-input-box.active { border: 2.5px solid #ec4899; background: #fdf2f8; color: #db2777; animation: pulse-pink 1.5s infinite; }
+        .dark .fraction-input-box.active { background: #500724; color: #fbcfe8; }
+        .fraction-input-box.filled { border: 2px solid #3b82f6; color: #1d4ed8; background: #eff6ff; }
+        .dark .fraction-input-box.filled { background: #1e3a8a; color: #93c5fd; border-color: #3b82f6; }
+
+        .app-container { width: min(100%, 800px); margin: 0 auto; padding: var(--safe-top) env(safe-area-inset-right) var(--safe-bottom) env(safe-area-inset-left); height: 100vh; display: flex; flex-direction: column; justify-content: center; }
+    </style>
+</head>
+<body>
+    <div id="ar-cursor"><i class="fas fa-hand-pointer absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white"></i></div>
+    <canvas id="confetti-canvas" class="fixed top-0 left-0 w-full h-full pointer-events-none z-50"></canvas>
+
+    <div class="app-container relative">
+        <!-- 1. Home Screen -->
+        <div id="screen-home" class="flex flex-col items-center justify-center h-full space-y-6 w-full px-4 animate-pop">
+            <div class="text-center relative">
+                <div class="absolute -top-10 -left-6 text-5xl animate-float" style="animation-delay: 0s;">🐰</div>
+                <div class="absolute -top-10 -right-6 text-5xl animate-float" style="animation-delay: 1s;">🦊</div>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-blue-600 dark:text-blue-300 drop-shadow-md mb-2">🧮 การบวกเศษส่วน ป.4</h1>
+                <p class="text-lg font-semibold text-pink-500 dark:text-pink-300">ผจญภัยเรียนรู้เศษส่วนแสนสนุกสุดน่ารัก ✨</p>
+            </div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-md mt-6">
+                <button onclick="ui.showScreen('screen-modes')" class="btn bg-gradient-to-r from-blue-400 to-blue-500 text-white p-4 rounded-3xl shadow-soft text-xl font-bold flex items-center justify-center gap-2 col-span-1 sm:col-span-2">
+                    <i class="fas fa-play-circle text-2xl"></i> เริ่มเล่นเกม
+                </button>
+                <button onclick="ui.showScreen('screen-how')" class="btn bg-white dark:bg-slate-700 text-purple-500 dark:text-purple-300 p-4 rounded-3xl shadow-soft font-bold flex items-center justify-center gap-2">
+                    <i class="fas fa-book-open"></i> วิธีเล่นเศษส่วน
+                </button>
+                <button onclick="ui.showScreen('screen-dash')" class="btn bg-white dark:bg-slate-700 text-yellow-500 dark:text-yellow-300 p-4 rounded-3xl shadow-soft font-bold flex items-center justify-center gap-2">
+                    <i class="fas fa-trophy"></i> คะแนน & เกียรติบัตร
+                </button>
+            </div>
+
+            <div class="flex gap-4 mt-4">
+                <button onclick="system.toggleSound()" class="btn bg-white dark:bg-slate-700 p-4 rounded-full shadow-soft text-gray-600 dark:text-gray-200 w-14 h-14 flex items-center justify-center"><i id="icon-sound" class="fas fa-volume-up text-xl"></i></button>
+                <button onclick="system.toggleTheme()" class="btn bg-white dark:bg-slate-700 p-4 rounded-full shadow-soft text-gray-600 dark:text-gray-200 w-14 h-14 flex items-center justify-center"><i id="icon-theme" class="fas fa-moon text-xl"></i></button>
+            </div>
+        </div>
+
+        <!-- 2. How to Play -->
+        <div id="screen-how" class="hidden flex flex-col items-center justify-start h-full pt-10 px-4 w-full overflow-y-auto">
+            <h2 class="text-3xl font-bold text-purple-600 dark:text-purple-300 mb-4"><i class="fas fa-chalkboard-teacher"></i> วิธีเล่นแสนง่าย</h2>
+            <div class="glass-card w-full max-w-md p-6 rounded-3xl shadow-soft space-y-4 text-gray-700 dark:text-gray-200 mb-6">
+                <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold shrink-0 mt-1">1</div>
+                    <p><b>บวกส่วนเท่ากัน:</b> ตัวส่วนจะคงเดิมเสมอ! เด็ก ๆ เพียงแค่นำตัวเศษ (ด้านบน) มาบวกกันแล้วเติมคำตอบได้เลย</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 bg-pink-100 text-pink-700 rounded-full flex items-center justify-center font-bold shrink-0 mt-1">2</div>
+                    <p><b>บวกส่วนไม่เท่ากัน:</b> ต้องเปลี่ยนตัวส่วนให้เท่ากันก่อนโดยการหา ค.ร.น. จากนั้นเด็ก ๆ จะได้ **ฝึกพิมพ์ตัวเลขที่จะคูณทั้งเศษและส่วน** เพื่อแปลงรูปก่อนคำนวณบวกจริง!</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 bg-yellow-100 text-yellow-700 rounded-full flex items-center justify-center font-bold shrink-0 mt-1">3</div>
+                    <p>ตอบคำถามถูกต้องครบ 10 ข้อเพื่อสะสมเกียรติบัตรสุดน่ารักอวดคุณพ่อคุณแม่ได้เลย!</p>
+                </div>
+            </div>
+            <button onclick="ui.showScreen('screen-home')" class="btn bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-200 px-8 py-3 rounded-full font-bold shadow-soft"><i class="fas fa-arrow-left"></i> เข้าใจแล้ว</button>
+        </div>
+
+        <!-- 3. Mode Selection -->
+        <div id="screen-modes" class="hidden flex flex-col items-center justify-center h-full space-y-6 w-full px-4">
+            <h2 class="text-3xl font-bold text-blue-600 dark:text-blue-300 mb-2">เลือกโหมดผจญภัย 🚀</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg">
+                <button onclick="game.start('like_denom')" class="btn glass-card p-6 rounded-3xl shadow-soft text-left flex items-center gap-4 border-l-8 border-green-400">
+                    <div class="text-4xl">🍰</div>
+                    <div><h3 class="text-xl font-bold text-gray-800 dark:text-white">ส่วนเท่ากัน (Easy)</h3><p class="text-sm text-gray-500 dark:text-gray-400">ตัวส่วนคงเดิม นำตัวเศษมาบวกกันได้เลย</p></div>
+                </button>
+                <button onclick="game.start('unlike_denom')" class="btn glass-card p-6 rounded-3xl shadow-soft text-left flex items-center gap-4 border-l-8 border-red-400">
+                    <div class="text-4xl">🧪</div>
+                    <div><h3 class="text-xl font-bold text-gray-800 dark:text-white">ส่วนไม่เท่ากัน (Normal)</h3><p class="text-sm text-gray-500 dark:text-gray-400">คูณแปลงส่วนเศษส่วนให้เท่ากันแล้วบวกกัน</p></div>
+                </button>
+                <button onclick="game.start('word_problems')" class="btn glass-card p-6 rounded-3xl shadow-soft text-left flex items-center gap-4 border-l-8 border-yellow-400">
+                    <div class="text-4xl">📖</div>
+                    <div><h3 class="text-xl font-bold text-gray-800 dark:text-white">โจทย์ปัญหา (Adventure)</h3><p class="text-sm text-gray-500 dark:text-gray-400">คิดคำนวณจากเรื่องราวน่ารักรอบตัว</p></div>
+                </button>
+                <button onclick="game.start('ar_hands')" class="btn glass-card p-6 rounded-3xl shadow-soft text-left flex items-center gap-4 border-l-8 border-purple-400">
+                    <div class="text-4xl">🤖</div>
+                    <div><h3 class="text-xl font-bold text-gray-800 dark:text-white">AR จับมือ (Hands)</h3><p class="text-sm text-gray-500 dark:text-gray-400">ฝึกเศษส่วนผ่านการจับภาพมือโบกชี้</p></div>
+                </button>
+            </div>
+            <button onclick="ui.showScreen('screen-home')" class="btn mt-4 text-gray-500 font-bold underline">กลับหน้าหลัก</button>
+        </div>
+
+        <!-- 4. Main Game -->
+        <div id="screen-game" class="hidden flex flex-col h-full w-full max-w-xl mx-auto pt-4 pb-6 px-4 justify-center">
+            <!-- Header Bar -->
+            <div class="flex justify-between items-center glass-card px-4 py-2 rounded-2xl shadow-soft mb-3 shrink-0">
+                <div class="flex flex-col">
+                    <span class="text-xs text-gray-500 dark:text-gray-400 font-bold" id="game-mode-label">โหมด</span>
+                    <span class="text-xl font-black text-blue-600 dark:text-blue-400">ข้อที่: <span id="ui-current-turn">1</span>/10</span>
+                </div>
+                <div class="flex flex-col items-end">
+                    <div class="text-red-500 text-lg tracking-widest" id="ui-lives">❤️❤️❤️</div>
+                    <div class="text-yellow-500 font-bold text-sm" id="ui-timer-level">คะแนน: 0</div>
+                </div>
+            </div>
+
+            <!-- Math Question Workspace (Fully Responsive) -->
+            <div id="math-card" class="glass-card flex-1 rounded-3xl shadow-soft relative overflow-y-auto overflow-x-hidden mb-3 p-4 flex flex-col items-center justify-center custom-scrollbar min-h-[280px]">
+                <div id="feedback-overlay" class="fixed inset-0 flex items-center justify-center text-6xl opacity-0 pointer-events-none transition-opacity duration-300 z-10 bg-white/50 dark:bg-slate-900/50 rounded-3xl">✅</div>
+                
+                <!-- Word problem text display if active -->
+                <div id="word-problem-desc" class="hidden text-center text-gray-700 dark:text-gray-200 font-bold text-md mb-4 bg-blue-50 dark:bg-slate-800/60 p-3 rounded-2xl max-w-md"></div>
+
+                <!-- Fraction Equation Display Workspace -->
+                <div id="equation-workspace" class="flex flex-wrap items-center justify-center gap-2 md:gap-4 text-xl md:text-2xl font-bold text-gray-800 dark:text-white w-full">
+                    <!-- Rendered dynamically by JS -->
+                </div>
+
+                <!-- Guide instructions (ค.ร.น. helper etc.) -->
+                <div id="math-helper-guide" class="hidden text-sm text-pink-500 dark:text-pink-300 font-bold mt-4 text-center bg-pink-50 dark:bg-pink-950/40 px-4 py-2 rounded-xl"></div>
+                
+                <div id="compliment-text" class="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-green-500 font-bold text-xl opacity-0 transition-opacity">สุดยอด!</div>
+            </div>
+
+            <!-- AR Camera -->
+            <div id="ar-container" class="hidden w-full h-24 rounded-2xl overflow-hidden mb-3 relative shadow-soft border-2 border-purple-400 shrink-0">
+                <video id="ar-video" class="w-full h-full object-cover" autoplay playsinline></video>
+                <div class="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-xs font-bold" id="ar-status">กำลังโหลดกล้อง...</div>
+            </div>
+
+            <!-- Interactive Numpad -->
+            <div class="grid grid-cols-5 gap-2 w-full shrink-0">
+                <button class="btn bg-white dark:bg-slate-700 text-2xl font-bold text-gray-800 dark:text-white py-3 rounded-xl shadow-soft" onclick="game.input(1)">1</button>
+                <button class="btn bg-white dark:bg-slate-700 text-2xl font-bold text-gray-800 dark:text-white py-3 rounded-xl shadow-soft" onclick="game.input(2)">2</button>
+                <button class="btn bg-white dark:bg-slate-700 text-2xl font-bold text-gray-800 dark:text-white py-3 rounded-xl shadow-soft" onclick="game.input(3)">3</button>
+                <button class="btn bg-white dark:bg-slate-700 text-2xl font-bold text-gray-800 dark:text-white py-3 rounded-xl shadow-soft" onclick="game.input(4)">4</button>
+                <button class="btn bg-white dark:bg-slate-700 text-2xl font-bold text-gray-800 dark:text-white py-3 rounded-xl shadow-soft" onclick="game.input(5)">5</button>
+                <button class="btn bg-white dark:bg-slate-700 text-2xl font-bold text-gray-800 dark:text-white py-3 rounded-xl shadow-soft" onclick="game.input(6)">6</button>
+                <button class="btn bg-white dark:bg-slate-700 text-2xl font-bold text-gray-800 dark:text-white py-3 rounded-xl shadow-soft" onclick="game.input(7)">7</button>
+                <button class="btn bg-white dark:bg-slate-700 text-2xl font-bold text-gray-800 dark:text-white py-3 rounded-xl shadow-soft" onclick="game.input(8)">8</button>
+                <button class="btn bg-white dark:bg-slate-700 text-2xl font-bold text-gray-800 dark:text-white py-3 rounded-xl shadow-soft" onclick="game.input(9)">9</button>
+                <button class="btn bg-white dark:bg-slate-700 text-2xl font-bold text-gray-800 dark:text-white py-3 rounded-xl shadow-soft" onclick="game.input(0)">0</button>
+            </div>
+            
+            <button onclick="game.quit()" class="mt-3 shrink-0 text-center text-sm text-gray-400 underline pb-2">ออกจากการเล่น</button>
+        </div>
+
+        <!-- 5. Dashboard -->
+        <div id="screen-dash" class="hidden flex flex-col items-center justify-start h-full pt-10 px-4 w-full overflow-y-auto pb-10">
+            <h2 class="text-3xl font-bold text-yellow-500 mb-6" id="dash-title">🏆 ตารางคนเก่ง</h2>
+            <div class="glass-card w-full max-w-md p-6 rounded-3xl shadow-soft text-gray-800 dark:text-white mb-4">
+                <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <span class="font-bold text-lg">คะแนนความพยายามสะสม</span>
+                    <span class="text-3xl font-black text-blue-500" id="stat-total-score">0</span>
+                </div>
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div class="bg-green-100 dark:bg-green-900/50 p-3 rounded-xl">
+                        <div class="text-sm text-green-600 dark:text-green-400">ตอบถูกทั้งหมด</div>
+                        <div class="text-xl font-bold" id="stat-correct">0</div>
+                    </div>
+                    <div class="bg-red-100 dark:bg-red-900/50 p-3 rounded-xl">
+                        <div class="text-sm text-red-600 dark:text-red-400">ตอบผิด</div>
+                        <div class="text-xl font-bold" id="stat-wrong">0</div>
+                    </div>
+                </div>
+                <div class="mt-4 h-40 relative">
+                    <canvas id="statsChart"></canvas>
+                </div>
+            </div>
+            <button onclick="certSystem.openNameModal()" class="btn bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white px-8 py-3.5 rounded-full font-bold shadow-soft w-full max-w-xs mb-3 flex items-center justify-center gap-2 text-lg">
+                <i class="fas fa-graduation-cap text-xl"></i> รับเกียรติบัตรคนเก่ง 🎓
+            </button>
+            <button onclick="ui.showScreen('screen-home')" class="btn bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-soft w-full max-w-xs"><i class="fas fa-home"></i> กลับหน้าหลัก</button>
+        </div>
+
+        <!-- Confirm Modal -->
+        <div id="confirm-modal" class="hidden fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+            <div class="glass-card p-6 rounded-3xl shadow-soft max-w-xs w-full text-center animate-pop">
+                <div class="text-5xl mb-3">🚪</div>
+                <h3 class="text-xl font-bold text-gray-800 dark:text-white mb-2">ออกจากเกม?</h3>
+                <p class="text-gray-500 dark:text-gray-300 text-sm mb-6">ความก้าวหน้าในข้อนี้จะยังไม่บันทึกน้าาา อยู่ตอบด้วยกันอีกนิดสิเด็กเก่ง!</p>
+                <div class="flex gap-3">
+                    <button onclick="game.confirmQuit(true)" class="btn flex-1 bg-red-500 hover:bg-red-600 text-white py-2.5 rounded-2xl font-bold">ออกเลย</button>
+                    <button onclick="game.confirmQuit(false)" class="btn flex-1 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-200 py-2.5 rounded-2xl font-bold">เล่นต่อ</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Name input for Certificate Modal -->
+        <div id="cert-name-modal" class="hidden fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4">
+            <div class="glass-card p-6 rounded-3xl shadow-soft max-w-sm w-full text-center animate-pop">
+                <div class="text-5xl mb-3">🎉</div>
+                <h3 class="text-2xl font-black text-blue-600 dark:text-blue-300 mb-2">รับรางวัลกันเถอะ!</h3>
+                <p class="text-gray-500 dark:text-gray-300 text-sm mb-4">พิมพ์ชื่อ-นามสกุลของคุณคนเก่ง เพื่อจัดเตรียมสลักลงเกียรติบัตรทองคำ</p>
+                <input type="text" id="cert-student-name" placeholder="เด็กหญิง/เด็กชาย น่ารัก แสนดี" class="w-full px-4 py-3 border-2 border-pink-300 rounded-2xl text-center font-semibold text-lg focus:outline-none focus:border-pink-500 dark:bg-slate-800 dark:text-white mb-6">
+                <div class="flex gap-3">
+                    <button onclick="certSystem.generate()" class="btn flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-2xl font-bold shadow-soft">สร้างเกียรติบัตร 📜</button>
+                    <button onclick="certSystem.closeNameModal()" class="btn flex-1 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-200 py-3 rounded-2xl font-bold">ยกเลิก</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- View Certificate Modal -->
+        <div id="cert-view-modal" class="hidden fixed inset-0 bg-black/60 z-[120] flex flex-col items-center justify-center p-4 overflow-y-auto">
+            <div class="glass-card p-6 rounded-3xl shadow-soft max-w-2xl w-full text-center flex flex-col items-center relative animate-pop">
+                <button onclick="certSystem.closeViewModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl"><i class="fas fa-times"></i></button>
+                <h3 class="text-2xl font-black text-amber-500 mb-4"><i class="fas fa-graduation-cap text-yellow-500"></i> เกียรติบัตรความสามารถคนเก่ง</h3>
+                
+                <div class="w-full max-w-lg aspect-[1.414/1] bg-white rounded-xl shadow-inner border border-gray-200 overflow-hidden mb-6">
+                    <canvas id="cert-canvas" width="800" height="565" class="w-full h-auto block"></canvas>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-3 w-full max-w-md">
+                    <button onclick="certSystem.download()" class="btn flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-3 rounded-2xl font-bold shadow-soft flex items-center justify-center gap-2 text-md">
+                        <i class="fas fa-download"></i> เซฟรูปลงเครื่อง 💾
+                    </button>
+                    <button onclick="certSystem.closeViewModal()" class="btn flex-1 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-200 py-3 rounded-2xl font-bold">ปิดหน้าจอ</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="toast" class="fixed top-10 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-xl transition-all duration-300 opacity-0 pointer-events-none z-50 flex items-center gap-2 whitespace-nowrap">
+            <i class="fas fa-info-circle"></i> <span id="toast-msg">Message</span>
+        </div>
+    </div>
+
+    <script>
+        // --- System Setup ---
+        const system = {
+            isSoundOn: true, isDarkMode: false, audioCtx: null,
+            init() {
+                const savedTheme = localStorage.getItem('theme_fraction');
+                if (savedTheme === 'dark') this.toggleTheme(true);
+                const savedSound = localStorage.getItem('sound_fraction');
+                if (savedSound === 'off') this.toggleSound(true);
+                stats.load();
+                
+                document.addEventListener('keydown', (e) => {
+                    if (ui.currentScreen !== 'screen-game') return;
+                    if (e.key >= '0' && e.key <= '9') {
+                        const btn = document.querySelectorAll('#screen-game .grid button')[parseInt(e.key) === 0 ? 9 : parseInt(e.key) - 1];
+                        btn.style.transform = 'scale(0.9)'; setTimeout(() => btn.style.transform = '', 100);
+                        game.input(parseInt(e.key));
+                    }
+                });
+            },
+            toggleTheme(forceDark = false) {
+                this.isDarkMode = forceDark ? true : !this.isDarkMode;
+                document.body.classList.toggle('dark', this.isDarkMode);
+                document.getElementById('icon-theme').className = this.isDarkMode ? 'fas fa-sun text-xl' : 'fas fa-moon text-xl';
+                localStorage.setItem('theme_fraction', this.isDarkMode ? 'dark' : 'light');
+            },
+            toggleSound(forceOff = false) {
+                this.isSoundOn = forceOff ? false : !this.isSoundOn;
+                document.getElementById('icon-sound').className = this.isSoundOn ? 'fas fa-volume-up text-xl' : 'fas fa-volume-mute text-xl';
+                localStorage.setItem('sound_fraction', this.isSoundOn ? 'on' : 'off');
+                if (this.isSoundOn && !this.audioCtx) this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            },
+            playSound(type) {
+                if (!this.isSoundOn) return;
+                if (!this.audioCtx) this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = this.audioCtx.createOscillator(), gain = this.audioCtx.createGain();
+                osc.connect(gain); gain.connect(this.audioCtx.destination);
+                const now = this.audioCtx.currentTime;
+                if (type === 'tick') {
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                    gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                    osc.start(now); osc.stop(now + 0.1);
+                } else if (type === 'correct') {
+                    osc.type = 'triangle'; osc.frequency.setValueAtTime(440, now); osc.frequency.setValueAtTime(660, now + 0.1); osc.frequency.setValueAtTime(880, now + 0.2);
+                    gain.gain.setValueAtTime(0.4, now); gain.gain.linearRampToValueAtTime(0, now + 0.4);
+                    osc.start(now); osc.stop(now + 0.4);
+                } else if (type === 'wrong') {
+                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.2);
+                    gain.gain.setValueAtTime(0.4, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now); osc.stop(now + 0.3);
+                } else if (type === 'swoosh') {
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(200, now); osc.frequency.linearRampToValueAtTime(100, now + 0.1);
+                    gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                    osc.start(now); osc.stop(now + 0.1);
+                }
+            },
+            showToast(msg, isError = false) {
+                const toast = document.getElementById('toast');
+                document.getElementById('toast-msg').innerText = msg;
+                toast.className = `fixed top-10 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl transition-all duration-300 z-[150] flex items-center gap-2 whitespace-nowrap ${isError ? 'bg-red-500' : 'bg-green-500'} text-white`;
+                toast.style.opacity = '1'; setTimeout(() => toast.style.opacity = '0', 2500);
+            }
+        };
+
+        // --- Fraction Math Engine ---
+        const mathEngine = {
+            generateLikeDenom() {
+                const denoms = [5, 6, 7, 8, 9, 10, 12, 15];
+                const d = denoms[Math.floor(Math.random() * denoms.length)];
+                const num1 = Math.floor(Math.random() * (d - 2)) + 1;
+                const num2 = Math.floor(Math.random() * (d - num1 - 1)) + 1;
+                return {
+                    type: 'like',
+                    num1, d1: d,
+                    num2, d2: d,
+                    steps: [
+                        { label: 'บวกเศษ', ans: num1 + num2, target: 'num_ans' },
+                        { label: 'ส่วนคงเดิม', ans: d, target: 'denom_ans' }
+                    ]
+                };
+            },
+            generateUnlikeDenom() {
+                const pairs = [
+                    { d1: 2, d2: 3, lcm: 6 },
+                    { d1: 2, d2: 4, lcm: 4 },
+                    { d1: 3, d2: 6, lcm: 6 },
+                    { d1: 4, d2: 8, lcm: 8 },
+                    { d1: 2, d2: 6, lcm: 6 },
+                    { d1: 5, d2: 10, lcm: 10 },
+                    { d1: 3, d2: 9, lcm: 9 },
+                    { d1: 2, d2: 8, lcm: 8 }
+                ];
+                const pair = pairs[Math.floor(Math.random() * pairs.length)];
+                
+                const maxNum1 = Math.max(1, Math.floor(pair.lcm / pair.d1) - 1);
+                const num1 = Math.floor(Math.random() * maxNum1) + 1;
+                
+                const takenOnLcm = num1 * (pair.lcm / pair.d1);
+                const maxNum2 = Math.max(1, Math.floor((pair.lcm - takenOnLcm - 1) / (pair.lcm / pair.d2)));
+                const num2 = Math.floor(Math.random() * maxNum2) + 1;
+
+                const factor1 = pair.lcm / pair.d1;
+                const factor2 = pair.lcm / pair.d2;
+
+                const convertedNum1 = num1 * factor1;
+                const convertedNum2 = num2 * factor2;
+                const finalNum = convertedNum1 + convertedNum2;
+
+                return {
+                    type: 'unlike',
+                    num1, d1: pair.d1,
+                    num2, d2: pair.d2,
+                    lcm: pair.lcm,
+                    factor1,
+                    factor2,
+                    convertedNum1,
+                    convertedNum2,
+                    finalNum,
+                    // ขั้นตอนแสนสนุก ละเอียดขึ้นมากเพื่อให้เด็กเห็นภาพการคูณตรงกลางชัดเจน
+                    steps: [
+                        { label: 'ตัวคูณตัวแรก', ans: factor1, target: 'mult1' },
+                        { label: 'ตัวคูณตัวสอง', ans: factor2, target: 'mult2' },
+                        { label: 'เศษตัวแรกคำนวณได้', ans: convertedNum1, target: 'num1_conv' },
+                        { label: 'เศษตัวสองคำนวณได้', ans: convertedNum2, target: 'num2_conv' },
+                        { label: 'ส่วนที่เท่ากัน', ans: pair.lcm, target: 'denom_common' },
+                        { label: 'ผลรวมเศษ', ans: finalNum, target: 'num_ans' },
+                        { label: 'ตัวส่วนสุดท้าย', ans: pair.lcm, target: 'denom_ans' }
+                    ]
+                };
+            },
+            generateWordProblem() {
+                const problems = [
+                    {
+                        text: "แม่มีขนมเค้ก 1 ก้อน แบ่งให้น้องกินไปเศษ 2 ส่วน 5 ก้อน และพี่กินไปเศษ 1 ส่วน 5 ก้อน แม่แบ่งเค้กไปรวมทั้งหมดเท่าไร",
+                        math: { type: 'like', num1: 2, d1: 5, num2: 1, d2: 5, steps: [ { label: 'เศษรวม', ans: 3, target: 'num_ans' }, { label: 'ส่วน', ans: 5, target: 'denom_ans' } ] }
+                    },
+                    {
+                        text: "น้องอันดาอ่านหนังสือเศษ 1 ส่วน 3 ของเล่ม และอ่านต่อวันรุ่งขึ้นอีกเศษ 1 ส่วน 6 ของเล่ม น้องอันดาอ่านหนังสือรวมทั้งหมดเท่าไรของเล่ม",
+                        math: {
+                            type: 'unlike', num1: 1, d1: 3, num2: 1, d2: 6, lcm: 6,
+                            factor1: 2, factor2: 1,
+                            convertedNum1: 2, convertedNum2: 1, finalNum: 3,
+                            steps: [
+                                { label: 'ตัวคูณแรก', ans: 2, target: 'mult1' },
+                                { label: 'ตัวคูณสอง', ans: 1, target: 'mult2' },
+                                { label: 'แปลงตัวหน้า', ans: 2, target: 'num1_conv' },
+                                { label: 'แปลงตัวหลัง', ans: 1, target: 'num2_conv' },
+                                { label: 'ตัวส่วนร่วม', ans: 6, target: 'denom_common' },
+                                { label: 'รวมเศษ', ans: 3, target: 'num_ans' },
+                                { label: 'ตัวส่วนตอบ', ans: 6, target: 'denom_ans' }
+                            ]
+                        }
+                    },
+                    {
+                        text: "มีริบบิ้นสีฟ้าเศษ 3 ส่วน 10 ของม้วน และริบบิ้นสีชมพูเศษ 4 ส่วน 10 ของม้วน มีริบบิ้นทั้งสองสีรวมกันเท่าไร",
+                        math: { type: 'like', num1: 3, d1: 10, num2: 4, d2: 10, steps: [ { label: 'เศษรวม', ans: 7, target: 'num_ans' }, { label: 'ส่วน', ans: 10, target: 'denom_ans' } ] }
+                    },
+                    {
+                        text: "พี่วินดื่มนมเศษ 2 ส่วน 8 ของแกลลอน น้องพริมดื่มนมเศษ 1 ส่วน 2 ของแกลลอน ทั้งสองคนดื่มนมรวมกันคิดเป็นเท่าไร",
+                        math: {
+                            type: 'unlike', num1: 2, d1: 8, num2: 1, d2: 2, lcm: 8,
+                            factor1: 1, factor2: 4,
+                            convertedNum1: 2, convertedNum2: 4, finalNum: 6,
+                            steps: [
+                                { label: 'ตัวคูณแรก', ans: 1, target: 'mult1' },
+                                { label: 'ตัวคูณสอง', ans: 4, target: 'mult2' },
+                                { label: 'แปลงนมพี่', ans: 2, target: 'num1_conv' },
+                                { label: 'แปลงนมน้อง', ans: 4, target: 'num2_conv' },
+                                { label: 'ส่วนรวม', ans: 8, target: 'denom_common' },
+                                { label: 'รวมเศษ', ans: 6, target: 'num_ans' },
+                                { label: 'ส่วนตอบ', ans: 8, target: 'denom_ans' }
+                            ]
+                        }
+                    }
+                ];
+                return problems[Math.floor(Math.random() * problems.length)];
+            }
+        };
+
+        // --- UI & Game Logic ---
+        const ui = {
+            currentScreen: 'screen-home',
+            showScreen(id) {
+                document.querySelectorAll('.app-container > div:not(#toast)').forEach(el => el.classList.add('hidden'));
+                document.getElementById(id).classList.remove('hidden');
+                document.getElementById(id).classList.add('animate-pop');
+                this.currentScreen = id;
+                if (id === 'screen-dash') stats.renderDash();
+            },
+            renderEquation() {
+                const prob = game.currentProblem;
+                const workspace = document.getElementById('equation-workspace');
+                const helper = document.getElementById('math-helper-guide');
+                workspace.innerHTML = '';
+                helper.classList.add('hidden');
+
+                if (prob.type === 'like') {
+                    // เหมือนโหมดบวกปกติ มี 2 ขั้นตอนง่ายๆ
+                    workspace.innerHTML = `
+                        <div class="fraction-container">
+                            <div>${prob.num1}</div>
+                            <div class="fraction-line"></div>
+                            <div>${prob.d1}</div>
+                        </div>
+                        <div class="text-3xl text-pink-500 font-extrabold">+</div>
+                        <div class="fraction-container">
+                            <div>${prob.num2}</div>
+                            <div class="fraction-line"></div>
+                            <div>${prob.d2}</div>
+                        </div>
+                        <div class="text-3xl text-gray-400 font-extrabold">=</div>
+                        
+                        <!-- Answer Area -->
+                        <div class="fraction-container bg-pink-100/50 dark:bg-pink-950/20 px-3 py-1 rounded-2xl border-2 border-pink-200">
+                            <!-- Numerator box -->
+                            <div id="target-num_ans" class="fraction-input-box ${game.currentStepIndex === 0 ? 'active' : 'filled'}">
+                                ${game.currentStepIndex > 0 ? prob.steps[0].ans : '?'}
+                            </div>
+                            <div class="fraction-line"></div>
+                            <!-- Denominator box -->
+                            <div id="target-denom_ans" class="fraction-input-box ${game.currentStepIndex === 1 ? 'active' : (game.currentStepIndex > 1 ? 'filled' : 'empty')}">
+                                ${game.currentStepIndex > 1 ? prob.steps[1].ans : (game.currentStepIndex === 1 ? '?' : '')}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // โหมดบวกเศษส่วนไม่เท่ากัน (Unlike) - แสดงการเขียนเศษส่วนคูณกันเต็มขั้นอย่างละเอียด!
+                    helper.classList.remove('hidden');
+                    
+                    // ให้คำใบ้สับเปลี่ยนไปตามลำดับของสเต็ปที่ทำอยู่
+                    if (game.currentStepIndex === 0) {
+                        helper.innerHTML = `💡 ค.ร.น. ของ ${prob.d1} และ ${prob.d2} คือ <b>${prob.lcm}</b><br>มาหาตัวเลขที่คูณส่วน <b>${prob.d1}</b> แล้วได้ <b>${prob.lcm}</b> กันเถอะ!`;
+                    } else if (game.currentStepIndex === 1) {
+                        helper.innerHTML = `💡 ถัดไป หาตัวเลขที่คูณส่วน <b>${prob.d2}</b> แล้วได้ <b>${prob.lcm}</b> กันเถอะ!`;
+                    } else if (game.currentStepIndex === 2 || game.currentStepIndex === 3 || game.currentStepIndex === 4) {
+                        helper.innerHTML = `💡 คูณเลขเข้าในวงเล็บให้เรียบร้อยเพื่อทำตัวส่วนให้เป็น <b>${prob.lcm}</b> เท่ากันน้า!`;
+                    } else {
+                        helper.innerHTML = `💡 ส่วนเท่ากันเป็น <b>${prob.lcm}</b> แล้ว! บวกตัวเศษด้านบนได้เลยจ้า`;
+                    }
+
+                    // กำหนดสถานะ Class แอนิเมชันสำหรับช่องกรอกข้อมูลต่างๆ
+                    let m1Class = game.currentStepIndex === 0 ? 'active' : 'filled';
+                    let m2Class = game.currentStepIndex === 1 ? 'active' : (game.currentStepIndex > 1 ? 'filled' : 'empty');
+                    
+                    let conv1Class = game.currentStepIndex === 2 ? 'active' : (game.currentStepIndex > 2 ? 'filled' : 'empty');
+                    let conv2Class = game.currentStepIndex === 3 ? 'active' : (game.currentStepIndex > 3 ? 'filled' : 'empty');
+                    let commonClass = game.currentStepIndex === 4 ? 'active' : (game.currentStepIndex > 4 ? 'filled' : 'empty');
+                    
+                    let finalNumClass = game.currentStepIndex === 5 ? 'active' : (game.currentStepIndex > 5 ? 'filled' : 'empty');
+                    let finalDenomClass = game.currentStepIndex === 6 ? 'active' : (game.currentStepIndex > 6 ? 'filled' : 'empty');
+
+                    workspace.innerHTML = `
+                        <!-- ขั้นตอนที่ 1: แสดงกระบวนการคูณปรับค่าเศษส่วนในวงเล็บ -->
+                        <div class="flex flex-col md:flex-row items-center justify-center gap-3 bg-white/60 dark:bg-slate-800/60 p-4 rounded-3xl border border-blue-200 shadow-sm w-full">
+                            
+                            <!-- วงเล็บคูณตัวแรก -->
+                            <div class="flex items-center gap-1">
+                                <div class="text-xl font-normal text-gray-400 font-sans">(</div>
+                                <div class="fraction-container">
+                                    <div class="flex items-center gap-1.5">
+                                        <span>${prob.num1}</span>
+                                        <span class="text-xs text-pink-400">×</span>
+                                        <div id="target-mult1" class="fraction-input-box !w-10 !h-10 text-base ${m1Class}">
+                                            ${game.currentStepIndex > 0 ? prob.steps[0].ans : '?'}
+                                        </div>
+                                    </div>
+                                    <div class="fraction-line"></div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span>${prob.d1}</span>
+                                        <span class="text-xs text-pink-400">×</span>
+                                        <div class="fraction-input-box !w-10 !h-10 text-base ${m1Class}">
+                                            ${game.currentStepIndex > 0 ? prob.steps[0].ans : '?'}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-xl font-normal text-gray-400 font-sans">)</div>
+                            </div>
+
+                            <div class="text-2xl text-pink-400 font-extrabold">+</div>
+
+                            <!-- วงเล็บคูณตัวสอง -->
+                            <div class="flex items-center gap-1">
+                                <div class="text-xl font-normal text-gray-400 font-sans">(</div>
+                                <div class="fraction-container">
+                                    <div class="flex items-center gap-1.5">
+                                        <span>${prob.num2}</span>
+                                        <span class="text-xs text-pink-400">×</span>
+                                        <div id="target-mult2" class="fraction-input-box !w-10 !h-10 text-base ${m2Class}">
+                                            ${game.currentStepIndex > 1 ? prob.steps[1].ans : (game.currentStepIndex === 1 ? '?' : '')}
+                                        </div>
+                                    </div>
+                                    <div class="fraction-line"></div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span>${prob.d2}</span>
+                                        <span class="text-xs text-pink-400">×</span>
+                                        <div class="fraction-input-box !w-10 !h-10 text-base ${m2Class}">
+                                            ${game.currentStepIndex > 1 ? prob.steps[1].ans : (game.currentStepIndex === 1 ? '?' : '')}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-xl font-normal text-gray-400 font-sans">)</div>
+                            </div>
+                        </div>
+
+                        <!-- ตัวลูกศรชี้ลง -->
+                        <div class="text-3xl text-pink-500 font-extrabold w-full text-center py-1">⬇</div>
+
+                        <div class="flex flex-wrap items-center justify-center gap-4 w-full">
+                            <!-- ขั้นตอนที่ 2: แสดงเศษส่วนที่แปลงส่วนเท่ากันแล้ว -->
+                            <div class="flex items-center bg-blue-100/50 dark:bg-slate-900/40 px-4 py-2 rounded-2xl border border-blue-300">
+                                <div class="fraction-container">
+                                    <div id="target-num1_conv" class="fraction-input-box ${conv1Class}">
+                                        ${game.currentStepIndex > 2 ? prob.steps[2].ans : (game.currentStepIndex === 2 ? '?' : '')}
+                                    </div>
+                                    <div class="fraction-line"></div>
+                                    <div class="text-gray-500 text-lg w-[45px] text-center">${game.currentStepIndex > 4 ? prob.lcm : '?'}</div>
+                                </div>
+                                <div class="text-2xl text-blue-500 font-extrabold">+</div>
+                                <div class="fraction-container">
+                                    <div id="target-num2_conv" class="fraction-input-box ${conv2Class}">
+                                        ${game.currentStepIndex > 3 ? prob.steps[3].ans : (game.currentStepIndex === 3 ? '?' : '')}
+                                    </div>
+                                    <div class="fraction-line"></div>
+                                    <div id="target-denom_common" class="fraction-input-box ${commonClass}">
+                                        ${game.currentStepIndex > 4 ? prob.steps[4].ans : (game.currentStepIndex === 4 ? '?' : '')}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="text-3xl text-pink-500 font-extrabold">=</div>
+
+                            <!-- ขั้นตอนที่ 3: ผลลัพธ์สุดท้ายที่ได้จากการบวกกัน -->
+                            <div class="fraction-container bg-pink-100/50 dark:bg-pink-950/20 px-4 py-2 rounded-2xl border-2 border-pink-200 shadow-sm">
+                                <div id="target-num_ans" class="fraction-input-box ${finalNumClass}">
+                                    ${game.currentStepIndex > 5 ? prob.steps[5].ans : (game.currentStepIndex === 5 ? '?' : '')}
+                                </div>
+                                <div class="fraction-line"></div>
+                                <div id="target-denom_ans" class="fraction-input-box ${finalDenomClass}">
+                                    ${game.currentStepIndex > 6 ? prob.steps[6].ans : (game.currentStepIndex === 6 ? '?' : '')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                document.getElementById('ui-current-turn').innerText = game.turn;
+                document.getElementById('ui-lives').innerText = '❤️'.repeat(game.lives) + '🖤'.repeat(3 - game.lives);
+                document.getElementById('ui-timer-level').innerText = `คะแนน: ${game.score}`;
+            },
+            showFeedback(isCorrect, isFullComplete = false) {
+                const overlay = document.getElementById('feedback-overlay');
+                const card = document.getElementById('math-card');
+                
+                if (isCorrect) {
+                    if (isFullComplete) {
+                        system.playSound('correct');
+                        confetti.fire();
+                        const comps = ['เก่งฝุด ๆ!', 'ยอดเยี่ยมมาก!', 'บวกส่วนเป๊ะเว่อร์!', 'สมองใสมาก!'];
+                        const compText = document.getElementById('compliment-text');
+                        compText.innerText = comps[Math.floor(Math.random() * comps.length)];
+                        compText.style.opacity = '1';
+                        setTimeout(() => compText.style.opacity = '0', 2000);
+                        card.classList.add('border-4', 'border-green-400');
+                    } else {
+                        system.playSound('tick');
+                        setTimeout(() => system.playSound('swoosh'), 100);
+                    }
+                } else {
+                    system.playSound('wrong');
+                    overlay.innerText = '❌';
+                    overlay.classList.add('text-red-500');
+                    card.classList.add('animate-shake', 'border-4', 'border-red-400');
+                    overlay.style.opacity = '1';
+                }
+                
+                setTimeout(() => {
+                    overlay.style.opacity = '0';
+                    card.classList.remove('animate-shake', 'border-4', 'border-red-400', 'border-green-400');
+                    overlay.classList.remove('text-red-500');
+                }, 600);
+            }
+        };
+
+        // --- Game System Logic ---
+        const game = {
+            mode: '', score: 0, lives: 3, turn: 1, 
+            currentProblem: null, currentStepIndex: 0,
+            isAnimating: false,
+
+            start(selectedMode) {
+                this.mode = selectedMode;
+                this.score = 0; this.lives = 3; this.turn = 1;
+                this.currentStepIndex = 0;
+                this.isAnimating = false;
+
+                document.getElementById('ar-container').classList.add('hidden');
+                document.getElementById('ar-cursor').style.display = 'none';
+
+                let modeLabel = '';
+                if (this.mode === 'like_denom') modeLabel = 'โหมดเศษส่วนเท่ากัน';
+                else if (this.mode === 'unlike_denom') modeLabel = 'โหมดเศษส่วนไม่เท่ากัน';
+                else if (this.mode === 'word_problems') modeLabel = 'โหมดโจทย์ปัญหา';
+                else if (this.mode === 'ar_hands') { modeLabel = 'AR เศษส่วน'; arSystem.init(); }
+
+                document.getElementById('game-mode-label').innerText = modeLabel;
+                this.nextProblem();
+                ui.showScreen('screen-game');
+            },
+            nextProblem() {
+                if (this.turn > 10) {
+                    this.finishGame();
+                    return;
+                }
+                this.currentStepIndex = 0;
+                const problemDesc = document.getElementById('word-problem-desc');
+                problemDesc.classList.add('hidden');
+
+                if (this.mode === 'like_denom') {
+                    this.currentProblem = mathEngine.generateLikeDenom();
+                } else if (this.mode === 'unlike_denom' || this.mode === 'ar_hands') {
+                    this.currentProblem = mathEngine.generateUnlikeDenom();
+                } else if (this.mode === 'word_problems') {
+                    const wp = mathEngine.generateWordProblem();
+                    this.currentProblem = wp.math;
+                    problemDesc.innerText = wp.text;
+                    problemDesc.classList.remove('hidden');
+                }
+                ui.renderEquation();
+            },
+            input(num) {
+                if (this.isAnimating || this.lives <= 0) return;
+
+                const currentStepObj = this.currentProblem.steps[this.currentStepIndex];
+                const expectedAnswer = currentStepObj.ans;
+
+                if (num === expectedAnswer) {
+                    stats.data.correct++;
+                    this.isAnimating = true;
+                    ui.showFeedback(true, false);
+
+                    setTimeout(() => {
+                        this.isAnimating = false;
+                        this.currentStepIndex++;
+                        
+                        // ตรวจสอบว่าทำครบทุกขั้นตอนของโจทย์เศษส่วนข้อนี้หรือยัง
+                        if (this.currentStepIndex >= this.currentProblem.steps.length) {
+                            this.score += 10;
+                            ui.showFeedback(true, true);
+                            this.turn++;
+                            setTimeout(() => this.nextProblem(), 1200);
+                        } else {
+                            ui.renderEquation();
+                        }
+                    }, 800);
+                } else {
+                    this.lives--;
+                    stats.data.wrong++;
+                    ui.showFeedback(false);
+                    ui.renderEquation();
+
+                    if (this.lives <= 0) {
+                        setTimeout(() => this.gameOver(), 1000);
+                    }
+                }
+            },
+            gameOver() {
+                if (this.mode === 'ar_hands') arSystem.stop();
+                stats.data.totalScore += this.score;
+                stats.save();
+                document.getElementById('dash-title').innerText = '💔 ไม่เป็นไรน้า เล่นใหม่อีกครั้งกัน!';
+                ui.showScreen('screen-dash');
+            },
+            finishGame() {
+                if (this.mode === 'ar_hands') arSystem.stop();
+                stats.data.totalScore += this.score;
+                stats.save();
+                document.getElementById('dash-title').innerText = '🎉 เก่งม๊ากก! ผ่านกิจกรรมครบ 10 ข้อแล้ว';
+                ui.showScreen('screen-dash');
+            },
+            quit() {
+                document.getElementById('confirm-modal').classList.remove('hidden');
+            },
+            confirmQuit(isYes) {
+                document.getElementById('confirm-modal').classList.add('hidden');
+                if (isYes) {
+                    if (this.mode === 'ar_hands') arSystem.stop();
+                    ui.showScreen('screen-home');
+                }
+            }
+        };
+
+        // --- Stats Storage & Rendering ---
+        const stats = {
+            data: { totalScore: 0, correct: 0, wrong: 0 },
+            chartInstance: null,
+            load() {
+                const saved = localStorage.getItem('fraction_game_stats_v1');
+                if (saved) this.data = JSON.parse(saved);
+            },
+            save() {
+                localStorage.setItem('fraction_game_stats_v1', JSON.stringify(this.data));
+            },
+            renderDash() {
+                document.getElementById('stat-total-score').innerText = this.data.totalScore;
+                document.getElementById('stat-correct').innerText = this.data.correct;
+                document.getElementById('stat-wrong').innerText = this.data.wrong;
+
+                const ctx = document.getElementById('statsChart').getContext('2d');
+                if (this.chartInstance) this.chartInstance.destroy();
+                if (this.data.correct === 0 && this.data.wrong === 0) return;
+
+                this.chartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['ตอบถูกขั้นตอน', 'ตอบผิดพลาด'],
+                        datasets: [{
+                            data: [this.data.correct, this.data.wrong],
+                            backgroundColor: ['#4ade80', '#f87171'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'right' } },
+                        cutout: '65%'
+                    }
+                });
+            }
+        };
+
+        // --- Certificate (เกียรติบัตรคนเก่ง) ---
+        const certSystem = {
+            openNameModal() {
+                document.getElementById('cert-name-modal').classList.remove('hidden');
+            },
+            closeNameModal() {
+                document.getElementById('cert-name-modal').classList.add('hidden');
+            },
+            closeViewModal() {
+                document.getElementById('cert-view-modal').classList.add('hidden');
+            },
+            generate() {
+                const name = document.getElementById('cert-student-name').value.trim();
+                if (!name) {
+                    system.showToast('หนู ๆ อย่าลืมพิมพ์ชื่อก่อนสร้างน้าา 👦🏻👧🏻', true);
+                    return;
+                }
+                this.closeNameModal();
+                document.getElementById('cert-view-modal').classList.remove('hidden');
+
+                const canvas = document.getElementById('cert-canvas');
+                const ctx = canvas.getContext('2d');
+
+                // Draw Certificate BG
+                ctx.fillStyle = '#fdfdf6';
+                ctx.fillRect(0, 0, 800, 565);
+
+                // Elegant Gold/Blue frames
+                ctx.strokeStyle = '#bae6fd'; // sky blue frame
+                ctx.lineWidth = 14;
+                ctx.strokeRect(10, 10, 780, 545);
+
+                ctx.strokeStyle = '#fbcfe8'; // pastel pink frame
+                ctx.lineWidth = 4;
+                ctx.strokeRect(26, 26, 748, 513);
+
+                // Golden Stars on Corners
+                ctx.fillStyle = '#fef08a';
+                ctx.beginPath(); ctx.arc(26, 26, 25, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(774, 26, 25, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(26, 539, 25, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(774, 539, 25, 0, Math.PI*2); ctx.fill();
+
+                ctx.textAlign = 'center';
+
+                // Certificate Header
+                ctx.fillStyle = '#1e3a8a';
+                ctx.font = "bold 35px 'Kanit', sans-serif";
+                ctx.fillText("⭐ ใบประกาศเกียรติคุณยอดคนเก่ง ⭐", 400, 90);
+
+                // Sub header text
+                ctx.fillStyle = '#4b5563';
+                ctx.font = "18px 'Kanit', sans-serif";
+                ctx.fillText("เกียรติบัตรฉบับนี้ให้ไว้แก่เด็กดีผู้พากเพียร", 400, 150);
+
+                // Student's custom name
+                ctx.fillStyle = '#db2777'; // pink-600
+                ctx.font = "bold 36px 'Kanit', sans-serif";
+                ctx.fillText(name, 400, 220);
+
+                // Decorative underline
+                ctx.strokeStyle = '#fbcfe8';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(250, 240); ctx.lineTo(550, 240); ctx.stroke();
+
+                // Verification of achievements
+                ctx.fillStyle = '#374151';
+                ctx.font = "18px 'Kanit', sans-serif";
+                ctx.fillText("ได้ผ่านกิจกรรมแบบทดสอบทางคณิตศาสตร์เรื่องการบวกเศษส่วน ป.4", 400, 290);
+
+                ctx.fillStyle = '#2563eb';
+                ctx.font = "bold 22px 'Kanit', sans-serif";
+                ctx.fillText("“เกมการบวกเศษส่วน ป.4 (Fraction Addition Adventure)”", 400, 335);
+
+                ctx.fillStyle = '#059669';
+                ctx.font = "bold 20px 'Kanit', sans-serif";
+                ctx.fillText(`สะสมคะแนนคนเก่งสำเร็จ: ${game.score} คะแนน`, 400, 385);
+
+                // Seal Ribbon Stamp
+                ctx.fillStyle = '#fbbf24';
+                ctx.beginPath(); ctx.arc(680, 460, 32, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#d97706';
+                ctx.lineWidth = 6;
+                ctx.beginPath(); ctx.moveTo(665, 485); ctx.lineTo(655, 515); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(695, 485); ctx.lineTo(705, 515); ctx.stroke();
+                ctx.fillStyle = '#ffffff';
+                ctx.font = "bold 20px 'Kanit', sans-serif";
+                ctx.fillText("★", 680, 467);
+
+                // Signature Area
+                ctx.strokeStyle = '#d1d5db';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(80, 470); ctx.lineTo(240, 470); ctx.stroke();
+                
+                ctx.fillStyle = '#374151';
+                ctx.font = "bold 15px 'Kanit', sans-serif";
+                ctx.fillText("คุณครู AI สุดใจดี", 160, 495);
+                ctx.font = "12px 'Kanit', sans-serif";
+                ctx.fillStyle = '#9ca3af';
+                ctx.fillText("ครูผู้ฝึกสอนวิชาเศษส่วนแสนสนุก", 160, 518);
+
+                // Date stamp
+                const date = new Date();
+                const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+                const thaiDateText = `ให้ไว้ ณ วันที่ ${date.getDate()} ${thaiMonths[date.getMonth()]} พ.ศ. ${date.getFullYear() + 543}`;
+                
+                ctx.fillStyle = '#6b7280';
+                ctx.font = "16px 'Kanit', sans-serif";
+                ctx.fillText(thaiDateText, 400, 440);
+            },
+            download() {
+                const canvas = document.getElementById('cert-canvas');
+                try {
+                    const link = document.createElement('a');
+                    link.download = 'ใบประกาศ_การบวกเศษส่วน_ป4.png';
+                    link.href = canvas.toDataURL('image/png');
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    system.showToast('เซฟรูปลงอัลบั้มของคุณหนู ๆ แล้วจ้า! 🎉');
+                } catch(e) {
+                    system.showToast('เซฟไม่สำเร็จ หนู ๆ ลองแคปหน้าจอรูปด้านบนไว้น้า 📱', true);
+                }
+            }
+        };
+
+        // --- AR Camera Mode with MediaPipe Hands ---
+        const arSystem = {
+            video: null, hands: null, camera: null, isRunning: false, isPinched: false,
+            init() {
+                const container = document.getElementById('ar-container');
+                const status = document.getElementById('ar-status');
+                const cursor = document.getElementById('ar-cursor');
+                this.video = document.getElementById('ar-video');
+
+                container.classList.remove('hidden');
+                cursor.style.display = 'block';
+                status.classList.remove('hidden');
+
+                if (!this.hands) {
+                    this.hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+                    this.hands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+                    this.hands.onResults(this.onResults.bind(this));
+                }
+
+                if (!this.camera) {
+                    this.camera = new Camera(this.video, { onFrame: async () => { if(this.isRunning) await this.hands.send({image: this.video}); }, width: 320, height: 240 });
+                }
+
+                this.camera.start().then(() => { this.isRunning = true; status.classList.add('hidden'); })
+                .catch(() => {
+                    system.showToast('ไม่สามารถจำแนกกล้องได้ จึงสลับไปเป็นระบบธรรมดานะจ๊ะ', true);
+                    container.classList.add('hidden');
+                    cursor.style.display = 'none';
+                    game.start('unlike_denom');
+                });
+            },
+            stop() {
+                this.isRunning = false;
+                if (this.camera) this.camera.stop();
+                document.getElementById('ar-container').classList.add('hidden');
+                document.getElementById('ar-cursor').style.display = 'none';
+            },
+            onResults(results) {
+                const cursor = document.getElementById('ar-cursor');
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    const lm = results.multiHandLandmarks[0];
+                    const x = (1 - lm[8].x) * window.innerWidth;
+                    const y = lm[8].y * window.innerHeight;
+                    cursor.style.left = `${x}px`; cursor.style.top = `${y}px`;
+
+                    const dist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+                    if (dist < 0.05 && !this.isPinched) {
+                        this.isPinched = true; cursor.classList.add('pinched');
+                        const el = document.elementFromPoint(x, y);
+                        if (el && el.tagName === 'BUTTON') {
+                            el.style.transform = 'scale(0.9)'; setTimeout(() => el.style.transform = '', 150);
+                            el.click();
+                        }
+                    } else if (dist >= 0.05) { this.isPinched = false; cursor.classList.remove('pinched'); }
+                }
+            }
+        };
+
+        // --- Confetti Explosion FX ---
+        const confetti = {
+            particles: [], canvas: null, ctx: null, active: false,
+            init() {
+                this.canvas = document.getElementById('confetti-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize(); window.addEventListener('resize', () => this.resize());
+            },
+            resize() { this.canvas.width = window.innerWidth; this.canvas.height = window.innerHeight; },
+            fire() {
+                this.particles = []; const colors = ['#f87171', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa'];
+                for (let i = 0; i < 60; i++) {
+                    this.particles.push({
+                        x: this.canvas.width / 2, y: this.canvas.height / 2, r: Math.random() * 6 + 4,
+                        dx: Math.random() * 12 - 6, dy: Math.random() * -10 - 5,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        tilt: Math.floor(Math.random() * 10) - 10, tiltAngle: 0, tiltAngleInc: (Math.random() * 0.07) + 0.05
+                    });
+                }
+                if (!this.active) { this.active = true; requestAnimationFrame(() => this.draw()); }
+            },
+            draw() {
+                if (this.particles.length === 0) { this.active = false; this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height); return; }
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                for (let i = 0; i < this.particles.length; i++) {
+                    let p = this.particles[i];
+                    p.tiltAngle += p.tiltAngleInc; p.y += (Math.cos(p.tiltAngle) + 1 + p.r / 2) / 2;
+                    p.x += Math.sin(p.tiltAngle) * 2; p.dy += 0.2; p.x += p.dx; p.y += p.dy;
+                    this.ctx.beginPath(); this.ctx.lineWidth = p.r; this.ctx.strokeStyle = p.color;
+                    this.ctx.moveTo(p.x + p.tilt + p.r, p.y); this.ctx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r); this.ctx.stroke();
+                    if (p.y > this.canvas.height) { this.particles.splice(i, 1); i--; }
+                }
+                requestAnimationFrame(() => this.draw());
+            }
+        };
+
+        window.onload = () => { system.init(); confetti.init(); };
+    </script>
+</body>
+</html>
